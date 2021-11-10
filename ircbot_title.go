@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"regexp"
 	"strings"
 
@@ -24,8 +25,11 @@ var (
 
 func isIgnored(ctx context.Context, bot *ircbot, url string) bool {
 	var domain, blocked string
-	domain = strings.TrimPrefix(url, "https://")
-	domain = strings.TrimPrefix(domain, "http://")
+	if strings.HasPrefix(url, "https") {
+		domain = strings.TrimPrefix(url, "https://")
+	} else {
+		domain = strings.TrimPrefix(domain, "http://")
+	}
 	domain = strings.Split(domain, "/")[0]
 	err := bot.stmts[ignoredDomain].QueryRowContext(ctx, domain).Scan(&blocked)
 	if err != nil {
@@ -86,6 +90,11 @@ func get(ctx context.Context, url string, contentType string) (body io.ReadClose
 	if Config.UserAgent != "" {
 		request.Header.Set("User-Agent", Config.UserAgent)
 	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return
+	}
+	client.Jar = jar
 	response, err := client.Do(request)
 	if err != nil {
 		return
