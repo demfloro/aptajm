@@ -1,0 +1,12 @@
+DBname=db.sqlite
+Nick=example
+Ident=abcde
+Realname=unrealname
+NickservPass=hunter2
+Weathertoken=000000000000
+Server=irc.example.com:6697
+Channels=#example
+Timeout=10
+UserAgent=example
+Ignored=alex,bob
+Admins=~alice@f9a3824

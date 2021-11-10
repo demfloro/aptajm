@@ -1,0 +1,3 @@
+# aptajm
+
+Go IRC bot
