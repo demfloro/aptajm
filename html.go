@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"strings"
 
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/charset"
@@ -45,10 +46,12 @@ func traverse(n *html.Node, depth uint) (string, bool) {
 	return "", false
 }
 
-func extractTitle(data io.Reader) (title string, err error) {
-	data, err = htmlToUTF8(data)
-	if err != nil {
-		return
+func extractTitle(data io.Reader, utf8 bool) (title string, err error) {
+	if !utf8 {
+		data, err = htmlToUTF8(data)
+		if err != nil {
+			return
+		}
 	}
 	tree, err := html.Parse(data)
 	if err != nil {
@@ -81,5 +84,20 @@ func determineEncoding(data io.Reader) (e encoding.Encoding, name string, certai
 		return
 	}
 	e, name, certain = charset.DetermineEncoding(b, "")
+	return
+}
+
+func checkContentType(header string, contentType string) (ok bool, utf8 bool) {
+	header = strings.TrimSpace(header)
+	values := strings.Split(header, ";")
+	for _, value := range values {
+		value = strings.TrimSpace(strings.ToLower(value))
+		switch value {
+		case contentType:
+			ok = true
+		case "charset=utf-8":
+			utf8 = true
+		}
+	}
 	return
 }

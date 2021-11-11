@@ -30,14 +30,14 @@ func handleCurrencies(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 		bot.Log("Failed to get price for %q: %q", currency, err)
 		return
 	}
-	bot.Lock()
+	bot.mu.Lock()
 	bot.currencyCache[currency] = price
-	bot.Unlock()
+	bot.mu.Unlock()
 	msg.Reply(ctx, []string{fmt.Sprintf("%s/USD: %s", strings.ToUpper(currency), price)})
 }
 
 func getPrice(ctx context.Context, currency string) (price string, err error) {
-	body, err := get(ctx, fmt.Sprintf(btcURL, currency), "application/json")
+	body, _, err := get(ctx, fmt.Sprintf(btcURL, currency), "application/json")
 	if err != nil {
 		return "", err
 	}

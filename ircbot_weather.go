@@ -77,13 +77,13 @@ func getWeather(ctx context.Context, bot *ircbot, alias string) (result weather,
 		return
 	}
 	city = fmt.Sprintf("%s,%s", city, country)
-	bot.Lock()
+	bot.mu.Lock()
 	result, ok := bot.weatherCache[city]
-	bot.Unlock()
+	bot.mu.Unlock()
 	if ok {
 		return
 	}
-	body, err := get(ctx, fmt.Sprintf(weatherURL, Config.WeatherToken, city), "application/json")
+	body, _, err := get(ctx, fmt.Sprintf(weatherURL, Config.WeatherToken, city), "application/json")
 	if err != nil {
 		return
 	}

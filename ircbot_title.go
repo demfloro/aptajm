@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -13,7 +14,7 @@ import (
 )
 
 var (
-	isUrl       = regexp.MustCompile("https?://[^\\s]+")
+	isUrl       = regexp.MustCompile("https?://[^\\s]{1,500}")
 	ignoredExts = []string{
 		".avi", ".mkv", ".ogg", ".doc", ".docx",
 		".xls", ".xlsx", ".mp3", ".flac", ".m3a",
@@ -23,15 +24,18 @@ var (
 	}
 )
 
-func isIgnored(ctx context.Context, bot *ircbot, url string) bool {
-	var domain, blocked string
-	if strings.HasPrefix(url, "https") {
-		domain = strings.TrimPrefix(url, "https://")
-	} else {
-		domain = strings.TrimPrefix(domain, "http://")
+func isIgnored(ctx context.Context, bot *ircbot, potentialUrl string) bool {
+	URL, err := url.Parse(potentialUrl)
+	if err != nil {
+		return true
 	}
-	domain = strings.Split(domain, "/")[0]
-	err := bot.stmts[ignoredDomain].QueryRowContext(ctx, domain).Scan(&blocked)
+	if endsWith(URL.EscapedPath(), ignoredExts) {
+		return true
+	}
+	domain := URL.Hostname()
+
+	var blocked string
+	err = bot.stmts[ignoredDomain].QueryRowContext(ctx, domain).Scan(&blocked)
 	if err != nil {
 		return false
 	}
@@ -51,7 +55,7 @@ func handleURL(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 		return
 	}
 	for _, url := range urls {
-		if endsWith(url, ignoredExts) || isIgnored(ctx, bot, url) {
+		if isIgnored(ctx, bot, url) {
 			continue
 		}
 		title, err := getTitle(ctx, url)
@@ -68,20 +72,20 @@ func handleURL(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 }
 
 func getTitle(ctx context.Context, url string) (title string, err error) {
-	body, err := get(ctx, url, "text/html")
+	body, utf8, err := get(ctx, url, "text/html")
 	if err != nil {
 		return "", err
 	}
 	defer body.Close()
 
-	title, err = extractTitle(body)
+	title, err = extractTitle(body, utf8)
 	if err != nil {
 		return "", err
 	}
 	return title, nil
 }
 
-func get(ctx context.Context, url string, contentType string) (body io.ReadCloser, err error) {
+func get(ctx context.Context, url string, contentType string) (body io.ReadCloser, utf8 bool, err error) {
 	var client http.Client
 	request, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -104,9 +108,11 @@ func get(ctx context.Context, url string, contentType string) (body io.ReadClose
 		err = fmt.Errorf("wrong status code %d", response.StatusCode)
 		return
 	}
-	if t := response.Header.Get("Content-Type"); !strings.HasPrefix(t, contentType) {
+	responseType := response.Header.Get("Content-Type")
+	var ok bool
+	if ok, utf8 = checkContentType(responseType, contentType); !ok {
 		response.Body.Close()
-		err = fmt.Errorf("Content-Type is not %q: %q", contentType, t)
+		err = fmt.Errorf("Content-Type %q is not %q", responseType, contentType)
 		return
 	}
 	body = response.Body
