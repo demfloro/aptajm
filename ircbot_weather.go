@@ -96,9 +96,9 @@ func getWeather(ctx context.Context, bot *ircbot, alias string) (result weather,
 	if err != nil {
 		return
 	}
-	bot.Lock()
+	bot.mu.Lock()
 	bot.weatherCache[city] = result
-	bot.Unlock()
+	bot.mu.Unlock()
 	return
 }
 
@@ -111,12 +111,12 @@ func pruneWeatherCache(ctx context.Context, bot *ircbot) {
 			return
 		case <-ticker.C:
 		}
-		bot.Lock()
+		bot.mu.Lock()
 		for city, weather := range bot.weatherCache {
 			if weather.expired() {
 				delete(bot.weatherCache, city)
 			}
 		}
-		bot.Unlock()
+		bot.mu.Unlock()
 	}
 }

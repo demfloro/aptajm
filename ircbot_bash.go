@@ -90,14 +90,14 @@ func allow(bot *ircbot, msg ircfw.Msg) bool {
 		return true
 	}
 	channel := msg.Channel().Name()
-	bot.Lock()
+	bot.mu.Lock()
 	limit, ok := bot.bashLimits[channel]
 	if !ok {
 		bot.Log("Initialised missing bash limiter for %q", channel)
 		limit = time.NewTimer(time.Nanosecond)
 		bot.bashLimits[channel] = limit
 	}
-	bot.Unlock()
+	bot.mu.Unlock()
 	select {
 	case <-limit.C:
 		limit.Reset(time.Minute)

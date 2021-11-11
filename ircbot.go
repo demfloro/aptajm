@@ -37,16 +37,17 @@ const (
 type handler func(ctx context.Context, bot *ircbot, msg ircfw.Msg)
 
 type ircbot struct {
-	sync.Mutex
-	db            *sql.DB
-	client        *ircfw.Client
+	db       *sql.DB
+	client   *ircfw.Client
+	handlers map[botCmd]handler
+	stmts    map[dbStmt]*sql.Stmt
+	stop     context.CancelFunc
+	logger   *log.Logger
+	mu       sync.Mutex
+	// mutex protected fields
 	weatherCache  map[string]weather
 	currencyCache map[string]string
 	bashLimits    map[string]*time.Timer
-	handlers      map[botCmd]handler
-	stmts         map[dbStmt]*sql.Stmt
-	stop          context.CancelFunc
-	logger        *log.Logger
 }
 
 func newIRCBot(baseCtx context.Context, dbname string, nick string,
@@ -92,11 +93,11 @@ func newIRCBot(baseCtx context.Context, dbname string, nick string,
 	go pruneCurrencyCache(baseCtx, &ircbot)
 
 	stop := func() {
-		ircbot.Lock()
+		ircbot.mu.Lock()
 		for _, limit := range ircbot.bashLimits {
 			limit.Stop()
 		}
-		ircbot.Unlock()
+		ircbot.mu.Unlock()
 		cancelClient()
 		cancelDB()
 	}
@@ -122,9 +123,9 @@ func (b *ircbot) Join(ctx context.Context, channel string) (*ircfw.Channel, erro
 	if err != nil {
 		return nil, err
 	}
-	b.Lock()
+	b.mu.Lock()
 	b.bashLimits[channel] = time.NewTimer(time.Nanosecond)
-	b.Unlock()
+	b.mu.Unlock()
 	return ch, nil
 }
 

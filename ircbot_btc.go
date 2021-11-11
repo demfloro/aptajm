@@ -18,9 +18,9 @@ const (
 
 func handleCurrencies(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	currency := strings.ToLower(msg.Text()[0][1:])
-	bot.Lock()
+	bot.mu.Lock()
 	price, ok := bot.currencyCache[currency]
-	bot.Unlock()
+	bot.mu.Unlock()
 	if ok {
 		msg.Reply(ctx, []string{fmt.Sprintf("%s/USD: %s", strings.ToUpper(currency), price)})
 		return
@@ -81,10 +81,10 @@ func pruneCurrencyCache(ctx context.Context, bot *ircbot) {
 		case <-ticker.C:
 		}
 
-		bot.Lock()
+		bot.mu.Lock()
 		if len(bot.currencyCache) != 0 {
 			bot.currencyCache = make(map[string]string)
 		}
-		bot.Unlock()
+		bot.mu.Unlock()
 	}
 }

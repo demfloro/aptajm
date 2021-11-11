@@ -5,17 +5,16 @@ import (
 )
 
 // result shares slice with lines parameter
-func removeCmd(lines []string, prefix botCmd) (result []string) {
+func removeCmd(lines []string, prefix botCmd) []string {
 	if len(lines) < 1 {
-		return
+		return lines
 	}
 	prefixlen := len(prefix)
-	result = lines
-	if strings.ToLower(result[0][:prefixlen]) != string(prefix) {
-		return
+	if strings.ToLower(lines[0][:prefixlen]) != string(prefix) {
+		return lines
 	}
-	result[0] = strings.TrimSpace(result[0][prefixlen:])
-	return
+	lines[0] = strings.TrimSpace(lines[0][prefixlen:])
+	return lines
 }
 
 func dropRunes(line string, runes string) string {
