@@ -11,6 +11,7 @@ import (
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
 )
 
@@ -77,13 +78,19 @@ func htmlToUTF8(data io.Reader) (result io.Reader, err error) {
 	return
 
 }
-
 func determineEncoding(data io.Reader) (e encoding.Encoding, name string, certain bool, err error) {
 	b, err := bufio.NewReader(data).Peek(1024)
 	if err != nil {
 		return
 	}
 	e, name, certain = charset.DetermineEncoding(b, "")
+	/* hack for websites like interfax.ru which don't conform to
+	 * HTML standard and put their Content-Type tag beyond 1024 bytes
+	 * https://html.spec.whatwg.org/multipage/parsing.html#determining-the-character-encoding
+	 */
+	if e == charmap.Windows1252 && !certain {
+		e = charmap.Windows1251
+	}
 	return
 }
 
