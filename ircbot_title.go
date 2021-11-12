@@ -63,6 +63,9 @@ func handleURL(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 			bot.Log("Failed to extract title from %q, err: %q", url, err)
 			continue
 		}
+		if len(title) == 0 {
+			continue
+		}
 		titles = append(titles, title)
 	}
 

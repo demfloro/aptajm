@@ -34,7 +34,7 @@ func traverse(n *html.Node, depth uint) (string, bool) {
 		return "", false
 	}
 	if isTitleElement(n) && n.FirstChild != nil {
-		return n.FirstChild.Data, true
+		return strings.TrimSpace(n.FirstChild.Data), true
 	}
 
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
