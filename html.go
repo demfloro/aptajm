@@ -25,21 +25,48 @@ const (
  * https://siongui.github.io/2016/05/10/go-get-html-title-via-net-html/
  */
 
+type filterFunc func(n *html.Node) bool
+type extractFunc func(n *html.Node) (string, bool)
+
 func isTitleElement(n *html.Node) bool {
 	return n.Type == html.ElementNode && n.Data == "title"
 }
 
-func traverse(n *html.Node, depth uint) (string, bool) {
+func defaultExtractor(n *html.Node) (string, bool) {
+	if n.FirstChild != nil {
+		return strings.TrimSpace(n.FirstChild.Data), true
+	}
+	return "", false
+}
+
+func twitchExtractor(n *html.Node) (string, bool) {
+	if n == nil {
+		return "", false
+	}
+	for i, attr := range n.Attr {
+		if attr.Key == "property" && attr.Val == "og:title" && n.Attr[i+1].Key == "content" {
+			return strings.TrimSpace(n.Attr[i+1].Val), true
+		}
+	}
+	return "", false
+
+}
+
+func isTwitchElement(n *html.Node) bool {
+	return n.Type == html.ElementNode && n.Data == "meta"
+}
+
+func traverse(n *html.Node, depth uint, filter filterFunc, extractor extractFunc) (string, bool) {
 	depth++
 	if depth == RecursionLimit {
 		return "", false
 	}
-	if isTitleElement(n) && n.FirstChild != nil {
-		return strings.TrimSpace(n.FirstChild.Data), true
+	if filter(n) {
+		return extractor(n)
 	}
 
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
-		result, ok := traverse(child, depth)
+		result, ok := traverse(child, depth, filter, extractor)
 		if ok {
 			return result, ok
 		}
@@ -58,9 +85,16 @@ func extractTitle(data io.Reader, utf8 bool) (title string, err error) {
 	if err != nil {
 		return
 	}
-	title, ok := traverse(tree, 0)
+	title, ok := traverse(tree, 0, isTitleElement, defaultExtractor)
 	if !ok {
 		return "", errors.New("failed to find title")
+	}
+	switch title {
+	case "Twitch":
+		title, ok = traverse(tree, 0, isTwitchElement, twitchExtractor)
+		if !ok {
+			title = "Twitch"
+		}
 	}
 	return
 }
