@@ -43,9 +43,9 @@ func twitchExtractor(n *html.Node) (string, bool) {
 	if n == nil {
 		return "", false
 	}
-	for i, attr := range n.Attr {
-		if attr.Key == "property" && attr.Val == "og:title" && n.Attr[i+1].Key == "content" {
-			return strings.TrimSpace(n.Attr[i+1].Val), true
+	for _, attr := range n.Attr {
+		if attr.Key == "content" {
+			return strings.TrimSpace(attr.Val), true
 		}
 	}
 	return "", false
@@ -53,7 +53,14 @@ func twitchExtractor(n *html.Node) (string, bool) {
 }
 
 func isTwitchElement(n *html.Node) bool {
-	return n.Type == html.ElementNode && n.Data == "meta"
+	if n.Type == html.ElementNode && n.Data == "meta" {
+		for _, attr := range n.Attr {
+			if attr.Key == "property" && attr.Val == "og:title" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func traverse(n *html.Node, depth uint, filter filterFunc, extractor extractFunc) (string, bool) {
