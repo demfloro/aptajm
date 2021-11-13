@@ -30,6 +30,7 @@ const (
 	unknown dbStmt = iota
 	fetchQuote
 	fetchRandomQuote
+	fetchRandomRating
 	fetchCity
 	ignoredDomain
 )

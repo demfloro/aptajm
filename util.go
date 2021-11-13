@@ -37,3 +37,11 @@ func endsWith(line string, suffixes []string) bool {
 	}
 	return false
 }
+
+func splitTrim(line string, separator string) (result []string) {
+	result = strings.Split(line, separator)
+	for i, line := range result {
+		result[i] = strings.TrimSpace(line)
+	}
+	return
+}

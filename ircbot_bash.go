@@ -11,6 +11,10 @@ import (
 	"gitea.demsh.org/demsh/ircfw"
 )
 
+var (
+	quoteNotFound = fmt.Errorf("quote not found")
+)
+
 func (b *ircbot) fetchQuote(ctx context.Context, qid int) (quote, error) {
 	var (
 		id        int
@@ -21,14 +25,31 @@ func (b *ircbot) fetchQuote(ctx context.Context, qid int) (quote, error) {
 	)
 	switch {
 	case qid < 0:
-		return quote{}, fmt.Errorf("quote not found")
+		return quote{}, quoteNotFound
 	case qid > 0:
 		err = b.stmts[fetchQuote].QueryRowContext(ctx, qid).Scan(&id, &timestamp, &rating, &text)
 	default:
 		err = b.stmts[fetchRandomQuote].QueryRowContext(ctx).Scan(&id, &timestamp, &rating, &text)
 	}
 	if err == sql.ErrNoRows {
-		return quote{}, fmt.Errorf("quote not found")
+		return quote{}, quoteNotFound
+	} else if err != nil {
+		return quote{}, err
+	}
+	return quote{Id: id, Date: time.Unix(timestamp, 0), Rating: rating, Text: strings.Split(text, "\n")}, nil
+}
+
+func (b *ircbot) fetchRandomRatingQuote(ctx context.Context, qrating int) (quote, error) {
+	var (
+		id        int
+		timestamp int64
+		rating    int
+		text      string
+		err       error
+	)
+	err = b.stmts[fetchRandomRating].QueryRowContext(ctx, qrating, qrating).Scan(&id, &timestamp, &rating, &text)
+	if err == sql.ErrNoRows {
+		return quote{}, quoteNotFound
 	} else if err != nil {
 		return quote{}, err
 	}
@@ -73,12 +94,37 @@ func serveRandomQuote(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	msg.Reply(ctx, quote.ircFormat())
 }
 
+func serveRatingQuote(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
+	var (
+		rating int64
+		err    error
+	)
+	text := removeCmd(msg.Text(), cmdBash)
+	if strings.HasPrefix(text[0], "+") {
+		rating, err = strconv.ParseInt(text[0][1:], 10, 64)
+		if err != nil {
+			bot.Log("Failed to parse rating: %q", rating)
+			return
+		}
+	}
+	quote, err := bot.fetchRandomRatingQuote(ctx, int(rating))
+	if err != nil {
+		bot.Log("Failed to get quote: %#v", err)
+		return
+	}
+	msg.Reply(ctx, quote.ircFormat())
+}
+
 func handleBash(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	if !allow(bot, msg) {
 		return
 	}
 	firstline := msg.Text()[0]
-	if len(strings.Split(firstline, " ")) != 1 {
+	if params := splitTrim(firstline, " "); len(params) > 1 {
+		if strings.HasPrefix(params[1], "+") {
+			serveRatingQuote(ctx, bot, msg)
+			return
+		}
 		serveQuote(ctx, bot, msg)
 		return
 	}
