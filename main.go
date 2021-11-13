@@ -15,7 +15,7 @@ const (
 func main() {
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 	defer rootCancel()
-	logger, err := syslog.NewLogger(syslog.LOG_DEBUG, 0)
+	logger, err := syslog.NewLogger(syslog.LOG_DEBUG|syslog.LOG_DAEMON, 0)
 	if err != nil {
 		log.Fatal(err)
 	}
