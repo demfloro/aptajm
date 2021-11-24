@@ -13,7 +13,7 @@ func handleStatus(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	if !msg.IsPrivate() {
 		return
 	}
-	if !isAdmin(msg.Prefix()) {
+	if !bot.isAdmin(msg.Prefix()) {
 		return
 	}
 	runtime.ReadMemStats(&m)

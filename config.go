@@ -2,45 +2,89 @@ package main
 
 import (
 	"bufio"
+	"io"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/text/encoding/charmap"
 )
 
-var Config ConfigStruct
+var (
+	charmaps = map[string]*charmap.Charmap{
+		"windows-1250": charmap.Windows1250,
+		"windows-1251": charmap.Windows1251,
+		"windows-1252": charmap.Windows1252,
+		"windows-1253": charmap.Windows1253,
+		"windows-1254": charmap.Windows1254,
+		"windows-1255": charmap.Windows1255,
+		"windows-1256": charmap.Windows1256,
+		"windows-1257": charmap.Windows1257,
+		"windows-1258": charmap.Windows1258,
+		"cp1250":       charmap.Windows1250,
+		"cp1251":       charmap.Windows1251,
+		"cp1252":       charmap.Windows1252,
+		"cp1253":       charmap.Windows1253,
+		"cp1254":       charmap.Windows1254,
+		"cp1255":       charmap.Windows1255,
+		"cp1256":       charmap.Windows1256,
+		"cp1257":       charmap.Windows1257,
+		"cp1258":       charmap.Windows1258,
+		"koi8r":        charmap.KOI8R,
+		"koi8u":        charmap.KOI8U,
+	}
+)
 
 type ConfigStruct struct {
 	Nick, Password, Ident     string
 	Realname, WeatherToken    string
 	Server, DBName            string
 	UserAgent, NickservPass   string
+	PubFingerPrint            string
 	Admins, Channels, Ignored []string
-	BackupTimeout, Timeout    time.Duration
+	Charset                   *charmap.Charmap
+	Timeout                   time.Duration
 }
 
-func init() {
+func loadConfig(fname string) (*ConfigStruct, error) {
 	if len(os.Args) < 2 {
 		log.Fatalf("Not enough arguments, usage: %s configfile", os.Args[0])
 	}
-	Config = loadConfig(os.Args[1])
-}
-
-func loadConfig(fname string) (c ConfigStruct) {
 	file, err := os.Open(fname)
-	defer file.Close()
 	if err != nil {
 		log.Fatalf("Failed to open configuration file: %q", err)
 	}
-	scanner := bufio.NewScanner(file)
+	defer file.Close()
+	config, err := parseConfig(file)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
+func lookupCharset(name string) (result *charmap.Charmap) {
+	if name == "" {
+		return nil
+	}
+	result, ok := charmaps[name]
+	if !ok {
+		return nil
+	}
+	return result
+}
+
+func parseConfig(reader io.Reader) (c *ConfigStruct, err error) {
+	scanner := bufio.NewScanner(reader)
+	c = new(ConfigStruct)
 	for scanner.Scan() {
 		line := scanner.Text()
 		splitted := strings.Split(line, "=")
 		if len(splitted) != 2 {
 			log.Fatalf("Failed to parse: %q", line)
 		}
-		k, v := strings.ToLower(splitted[0]), splitted[1]
+		k, v := strings.ToLower(strings.TrimSpace(splitted[0])), strings.TrimSpace(splitted[1])
 		if strings.HasPrefix(k, "#") {
 			continue
 		}
@@ -86,12 +130,6 @@ func loadConfig(fname string) (c ConfigStruct) {
 				log.Fatalf("%q is not valid unsigned integer for Timeout", v)
 			}
 			c.Timeout = time.Duration(n) * time.Second
-		case "backuptimeout":
-			n, err := strconv.ParseUint(v, 10, 64)
-			if err != nil {
-				log.Fatalf("%q is not valid unsigned integer for BackupTimeout", v)
-			}
-			c.BackupTimeout = time.Duration(n) * time.Second
 		case "dbname":
 			if c.DBName != "" {
 				log.Fatalf("Repeated DBName assignment")
@@ -117,6 +155,16 @@ func loadConfig(fname string) (c ConfigStruct) {
 				log.Fatalf("Repeated Nickservpass assignment")
 			}
 			c.NickservPass = v
+		case "pubfingerprint":
+			if c.PubFingerPrint != "" {
+				log.Fatalf("Repeated Fingerprint assignment")
+			}
+			c.PubFingerPrint = v
+		case "charset":
+			if c.Charset != nil {
+				log.Fatalf("Repeated Charset assignment")
+			}
+			c.Charset = lookupCharset(v)
 		default:
 			log.Fatalf("Unknown directive %q", k)
 		}
@@ -133,13 +181,13 @@ func loadConfig(fname string) (c ConfigStruct) {
 	case c.Server == "":
 		log.Fatalf("Server must be specified")
 	case len(c.Channels) == 0:
-		log.Fatalf("Channel must be specified")
+		log.Fatalf("At least one channel in Channels must be specified")
 	case c.Timeout == 0:
 		c.Timeout = 10 * time.Second
 	}
-	if scanner.Err() != nil {
-		log.Fatalf("Scanner failure: %q", scanner.Err())
+	if err = scanner.Err(); err != nil {
+		return nil, err
 	}
-	return c
+	return c, nil
 
 }

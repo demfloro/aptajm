@@ -11,6 +11,7 @@ func init() {
 		"/etc/resolv.conf": "r",
 		"/etc/ssl":         "r",
 		"/var/gobot":       "rwc",
+		"/var/log/gobot":   "rwc",
 	}
 	for path, rights := range unveils {
 		if err := unix.Unveil(path, rights); err != nil {

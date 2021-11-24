@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gitea.demsh.org/demsh/ircfw"
+	"gopkg.in/tomb.v2"
 )
 
 const (
@@ -83,7 +84,7 @@ func getWeather(ctx context.Context, bot *ircbot, alias string) (result weather,
 	if ok {
 		return
 	}
-	body, _, err := get(ctx, fmt.Sprintf(weatherURL, Config.WeatherToken, city), "application/json")
+	body, _, err := get(ctx, fmt.Sprintf(weatherURL, bot.config.WeatherToken, city), "application/json", bot.config.UserAgent)
 	if err != nil {
 		return
 	}
@@ -102,21 +103,22 @@ func getWeather(ctx context.Context, bot *ircbot, alias string) (result weather,
 	return
 }
 
-func pruneWeatherCache(ctx context.Context, bot *ircbot) {
+func (b *ircbot) pruneWeatherCache() error {
+	b.weatherCache = make(map[string]weather)
 	ticker := time.NewTicker(time.Minute)
 	for {
 		select {
-		case <-ctx.Done():
+		case <-b.tomb.Dying():
 			ticker.Stop()
-			return
+			return tomb.ErrDying
 		case <-ticker.C:
 		}
-		bot.mu.Lock()
-		for city, weather := range bot.weatherCache {
+		b.mu.Lock()
+		for city, weather := range b.weatherCache {
 			if weather.expired() {
-				delete(bot.weatherCache, city)
+				delete(b.weatherCache, city)
 			}
 		}
-		bot.mu.Unlock()
+		b.mu.Unlock()
 	}
 }

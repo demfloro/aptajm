@@ -58,7 +58,7 @@ func handleURL(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 		if isIgnored(ctx, bot, url) {
 			continue
 		}
-		title, err := getTitle(ctx, url)
+		title, err := getTitle(ctx, url, bot.config.UserAgent)
 		if err != nil {
 			bot.Log("Failed to extract title from %q, err: %q", url, err)
 			continue
@@ -74,8 +74,8 @@ func handleURL(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	}
 }
 
-func getTitle(ctx context.Context, url string) (title string, err error) {
-	body, utf8, err := get(ctx, url, "text/html")
+func getTitle(ctx context.Context, url string, userAgent string) (title string, err error) {
+	body, utf8, err := get(ctx, url, "text/html", userAgent)
 	if err != nil {
 		return "", err
 	}
@@ -88,14 +88,14 @@ func getTitle(ctx context.Context, url string) (title string, err error) {
 	return title, nil
 }
 
-func get(ctx context.Context, url string, contentType string) (body io.ReadCloser, utf8 bool, err error) {
+func get(ctx context.Context, url string, contentType string, userAgent string) (body io.ReadCloser, utf8 bool, err error) {
 	var client http.Client
 	request, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return
 	}
-	if Config.UserAgent != "" {
-		request.Header.Set("User-Agent", Config.UserAgent)
+	if userAgent != "" {
+		request.Header.Set("User-Agent", userAgent)
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {

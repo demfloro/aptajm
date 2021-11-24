@@ -4,13 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
-	"log"
+	"errors"
 	"strings"
 	"sync"
 	"time"
 
 	"gitea.demsh.org/demsh/ircfw"
-	"golang.org/x/text/encoding/charmap"
+	"gopkg.in/tomb.v2"
 )
 
 type dbStmt uint8
@@ -35,15 +35,20 @@ const (
 	ignoredDomain
 )
 
+var (
+	ErrExitRequested = errors.New("exit requested")
+)
+
 type handler func(ctx context.Context, bot *ircbot, msg ircfw.Msg)
 
 type ircbot struct {
+	tomb     *tomb.Tomb
 	db       *sql.DB
 	client   *ircfw.Client
 	handlers map[botCmd]handler
 	stmts    map[dbStmt]*sql.Stmt
-	stop     context.CancelFunc
-	logger   *log.Logger
+	logger   ircfw.Logger
+	config   ConfigStruct
 	mu       sync.Mutex
 	// mutex protected fields
 	weatherCache  map[string]weather
@@ -51,58 +56,45 @@ type ircbot struct {
 	bashLimits    map[string]*time.Timer
 }
 
-func newIRCBot(baseCtx context.Context, dbname string, nick string,
-	ident string, realName string, password string, nickservPass string,
-	proto string, server string,
-	charmap *charmap.Charmap, logger *log.Logger) (*ircbot, error) {
-
-	db, cancelDB, err := initDB(baseCtx, dbname, logger)
-	if err != nil {
-		return nil, err
-	}
+func newIRCBot(baseCtx context.Context, config ConfigStruct, logger ircfw.Logger) (*ircbot, error) {
+	t, tombCtx := tomb.WithContext(baseCtx)
+	ircbot := ircbot{tomb: t, config: config}
+	ircbot.initDB()
 
 	dialer := tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true}}
-	ctx, cancel := context.WithTimeout(baseCtx, Config.Timeout)
-	socket, err := dialer.DialContext(ctx, proto, server)
+	ctx, cancel := context.WithTimeout(tombCtx, config.Timeout)
+	socket, err := dialer.DialContext(ctx, "tcp", config.Server)
 	cancel()
 	if err != nil {
+		t.Kill(err)
 		return nil, err
 	}
 
-	ircbot := ircbot{db: db}
 	handler := func(msg ircfw.Msg) {
-		go dispatch(baseCtx, &ircbot, msg)
+		go dispatch(&ircbot, msg)
 	}
 
-	client, cancelClient := ircfw.NewClient(baseCtx, nick, ident,
-		realName, password, nickservPass, socket, logger, handler, charmap)
+	client, _ := ircfw.NewClient(tombCtx, config.Nick, config.Ident,
+		config.Realname, config.Password, config.NickservPass, socket, logger, handler, config.Charset)
 
 	ircbot.logger = logger
 	ircbot.client = client
 	ircbot.handlers = initHandlers()
 
-	ctx, cancel = context.WithTimeout(baseCtx, Config.Timeout)
-	ircbot.stmts, err = initStmts(ctx, db)
-	cancel()
-	if err != nil {
-		return nil, err
-	}
-	ircbot.weatherCache = make(map[string]weather)
-	ircbot.currencyCache = make(map[string]string)
 	ircbot.bashLimits = make(map[string]*time.Timer)
-	go pruneWeatherCache(baseCtx, &ircbot)
-	go pruneCurrencyCache(baseCtx, &ircbot)
+	ircbot.tomb.Go(ircbot.finalizer)
+	ircbot.tomb.Go(ircbot.pruneWeatherCache)
+	ircbot.tomb.Go(ircbot.pruneCurrencyCache)
 
-	stop := func() {
-		ircbot.mu.Lock()
-		for _, limit := range ircbot.bashLimits {
-			limit.Stop()
+	for _, channel := range config.Channels {
+		ctx, cancel := context.WithTimeout(tombCtx, config.Timeout)
+		_, err = ircbot.Join(ctx, channel)
+		cancel()
+		if err != nil {
+			logger.Logf("Error joining channel %q: %q", channel, err)
 		}
-		ircbot.mu.Unlock()
-		cancelClient()
-		cancelDB()
 	}
-	ircbot.stop = stop
+
 	return &ircbot, nil
 }
 
@@ -130,27 +122,44 @@ func (b *ircbot) Join(ctx context.Context, channel string) (*ircfw.Channel, erro
 	return ch, nil
 }
 
-func (b *ircbot) Wait() {
-	b.client.Wait()
+func (b *ircbot) finalizer() error {
+	for {
+		select {
+		case <-b.tomb.Dying():
+			b.db.Close()
+			b.client.Quit("Bot is dying")
+		}
+	}
+}
+
+func (b *ircbot) Wait() error {
+	return b.client.Wait()
 }
 
 func (b *ircbot) Quit() {
 	b.client.Quit("Normal exit")
-	b.db.Close()
-	b.stop()
+	b.tomb.Kill(ErrExitRequested)
 }
 
-func (b *ircbot) Log(format string, params ...interface{}) {
-	b.logger.Printf(format, params...)
+func (b *ircbot) Log(v ...interface{}) {
+	b.logger.Log(v...)
 }
 
-func isAdmin(prefix string) bool {
+func (b *ircbot) Logf(format string, params ...interface{}) {
+	b.logger.Logf(format, params...)
+}
+
+func (b *ircbot) Debug(format string, params ...interface{}) {
+	b.logger.Debug(format, params...)
+}
+
+func (b *ircbot) isAdmin(prefix string) bool {
 	i := strings.Index(prefix, "!")
 	if i == -1 {
 		return false
 	}
 	prefix = prefix[i+1:]
-	for _, admin := range Config.Admins {
+	for _, admin := range b.config.Admins {
 		if prefix == admin {
 			return true
 		}
@@ -159,7 +168,7 @@ func isAdmin(prefix string) bool {
 }
 
 func handleQuit(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
-	if !isAdmin(msg.Prefix()) {
+	if !bot.isAdmin(msg.Prefix()) {
 		return
 	}
 	bot.Quit()
@@ -169,21 +178,22 @@ func handleDefault(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	handleURL(ctx, bot, msg)
 }
 
-func dispatch(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
+func dispatch(bot *ircbot, msg ircfw.Msg) {
 	text := msg.Text()
 	if len(text) < 1 {
 		return
 	}
 	nick := msg.Nick()
-	for _, ignore := range Config.Ignored {
+	for _, ignore := range bot.config.Ignored {
 		if nick == ignore {
 			return
 		}
 	}
 	cmd := strings.ToLower(strings.Split(text[0], " ")[0])
 	handler, ok := bot.handlers[botCmd(cmd)]
-	ctx, cancel := context.WithTimeout(ctx, Config.Timeout)
-	bot.Log("msg: %s", msg)
+	ctx := bot.tomb.Context(nil)
+	ctx, cancel := context.WithTimeout(ctx, bot.config.Timeout)
+	bot.Debug("msg: %s", msg)
 	if !ok {
 		handleDefault(ctx, bot, msg)
 		cancel()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -25,6 +26,10 @@ func (q quote) ircFormat() (result []string) {
 
 func colorize(in []string, color string) (out []string) {
 	for _, line := range in {
+		line = strings.TrimSpace(line)
+		if len(line) == 0 || line == "Комикс по мотивам цитаты" {
+			continue
+		}
 		out = append(out, color+line)
 	}
 	return out

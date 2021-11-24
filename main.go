@@ -3,38 +3,44 @@ package main
 import (
 	"context"
 	"log"
-	"log/syslog"
-
-	"golang.org/x/text/encoding/charmap"
-)
-
-const (
-	proto = "tcp"
+	"os"
+	"time"
 )
 
 func main() {
+	var err error
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 	defer rootCancel()
-	logger, err := syslog.NewLogger(syslog.LOG_DEBUG|syslog.LOG_DAEMON, 0)
+	logfile, err := os.OpenFile("/var/log/gobot/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
-
-	charmap := charmap.Windows1251
-	bot, err := newIRCBot(rootCtx, Config.DBName, Config.Nick,
-		Config.Ident, Config.Realname, Config.Password,
-		Config.NickservPass, proto, Config.Server, charmap, logger)
+	logger := newLogger(logfile, true)
+	if len(os.Args) < 2 {
+		log.Printf("Usage: %s configfile", os.Args[0])
+		return
+	}
+	config, err := loadConfig(os.Args[1])
 	if err != nil {
-		logger.Fatal(err)
+		logger.Logf("Error during loading config: %q", err)
+		return
 	}
-	defer bot.Quit()
-	for _, channel := range Config.Channels {
-		ctx, cancel := context.WithTimeout(rootCtx, Config.Timeout)
-		_, err = bot.Join(ctx, channel)
-		cancel()
+	for {
+		botCtx, botCancel := context.WithCancel(rootCtx)
+		bot, err := newIRCBot(botCtx, *config, logger)
 		if err != nil {
-			logger.Printf("Error joining channel %q: %q", channel, err)
+			logger.Log(err)
+			return
 		}
+		err = bot.Wait()
+		if err == nil {
+			botCancel()
+			break
+		}
+		// attempt to reconnect
+		bot.Quit()
+		botCancel()
+		time.Sleep(10 * time.Second)
 	}
-	bot.Wait()
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gitea.demsh.org/demsh/ircfw"
+	"gopkg.in/tomb.v2"
 )
 
 const (
@@ -25,7 +26,7 @@ func handleCurrencies(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 		msg.Reply(ctx, []string{fmt.Sprintf("%s/USD: %s", strings.ToUpper(currency), price)})
 		return
 	}
-	price, err := getPrice(ctx, currency)
+	price, err := getPrice(ctx, currency, bot.config.UserAgent)
 	if err != nil {
 		bot.Log("Failed to get price for %q: %q", currency, err)
 		return
@@ -36,8 +37,8 @@ func handleCurrencies(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	msg.Reply(ctx, []string{fmt.Sprintf("%s/USD: %s", strings.ToUpper(currency), price)})
 }
 
-func getPrice(ctx context.Context, currency string) (price string, err error) {
-	body, _, err := get(ctx, fmt.Sprintf(btcURL, currency), "application/json")
+func getPrice(ctx context.Context, currency string, userAgent string) (price string, err error) {
+	body, _, err := get(ctx, fmt.Sprintf(btcURL, currency), "application/json", userAgent)
 	if err != nil {
 		return "", err
 	}
@@ -71,20 +72,21 @@ func extractPrice(currency string, data io.Reader) (price string, err error) {
 	}
 }
 
-func pruneCurrencyCache(ctx context.Context, bot *ircbot) {
+func (b *ircbot) pruneCurrencyCache() error {
+	b.currencyCache = make(map[string]string)
 	ticker := time.NewTicker(10 * time.Minute)
 	for {
 		select {
-		case <-ctx.Done():
+		case <-b.tomb.Dying():
 			ticker.Stop()
-			return
+			return tomb.ErrDying
 		case <-ticker.C:
 		}
 
-		bot.mu.Lock()
-		if len(bot.currencyCache) != 0 {
-			bot.currencyCache = make(map[string]string)
+		b.mu.Lock()
+		if len(b.currencyCache) != 0 {
+			b.currencyCache = make(map[string]string)
 		}
-		bot.mu.Unlock()
+		b.mu.Unlock()
 	}
 }
