@@ -26,7 +26,7 @@ func handleCurrencies(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 		msg.Reply(ctx, []string{fmt.Sprintf("%s/USD: %s", strings.ToUpper(currency), price)})
 		return
 	}
-	price, err := getPrice(ctx, currency, bot.config.UserAgent)
+	price, err := getPrice(ctx, currency, bot.config.userAgent)
 	if err != nil {
 		bot.Log("Failed to get price for %q: %q", currency, err)
 		return

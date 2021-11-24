@@ -84,7 +84,7 @@ func getWeather(ctx context.Context, bot *ircbot, alias string) (result weather,
 	if ok {
 		return
 	}
-	body, _, err := get(ctx, fmt.Sprintf(weatherURL, bot.config.WeatherToken, city), "application/json", bot.config.UserAgent)
+	body, _, err := get(ctx, fmt.Sprintf(weatherURL, bot.config.weatherToken, city), "application/json", bot.config.userAgent)
 	if err != nil {
 		return
 	}

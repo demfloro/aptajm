@@ -11,7 +11,7 @@ import (
 )
 
 func (b *ircbot) initDB() error {
-	db, err := sql.Open("sqlite3", b.config.DBName)
+	db, err := sql.Open("sqlite3", b.config.dbname)
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func (b *ircbot) backupLoop() error {
 		return err
 	}
 	ticker := time.NewTicker(time.Hour / 2)
-	filename := b.config.DBName
+	filename := b.config.dbname
 
 	for {
 		select {

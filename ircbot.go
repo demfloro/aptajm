@@ -48,7 +48,7 @@ type ircbot struct {
 	handlers map[botCmd]handler
 	stmts    map[dbStmt]*sql.Stmt
 	logger   ircfw.Logger
-	config   ConfigStruct
+	config   config
 	mu       sync.Mutex
 	// mutex protected fields
 	weatherCache  map[string]weather
@@ -56,14 +56,14 @@ type ircbot struct {
 	bashLimits    map[string]*time.Timer
 }
 
-func newIRCBot(baseCtx context.Context, config ConfigStruct, logger ircfw.Logger) (*ircbot, error) {
+func newIRCBot(baseCtx context.Context, conf config, logger ircfw.Logger) (*ircbot, error) {
 	t, tombCtx := tomb.WithContext(baseCtx)
-	ircbot := ircbot{tomb: t, config: config}
+	ircbot := ircbot{tomb: t, config: conf}
 	ircbot.initDB()
 
 	dialer := tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true}}
-	ctx, cancel := context.WithTimeout(tombCtx, config.Timeout)
-	socket, err := dialer.DialContext(ctx, "tcp", config.Server)
+	ctx, cancel := context.WithTimeout(tombCtx, conf.timeout)
+	socket, err := dialer.DialContext(ctx, "tcp", conf.server)
 	cancel()
 	if err != nil {
 		t.Kill(err)
@@ -75,15 +75,15 @@ func newIRCBot(baseCtx context.Context, config ConfigStruct, logger ircfw.Logger
 	}
 	client, _ := ircfw.NewClient(
 		ircfw.Context(tombCtx),
-		ircfw.Nick(config.Nick),
-		ircfw.Ident(config.Ident),
-		ircfw.RealName(config.Realname),
-		ircfw.Password(config.Password),
-		ircfw.NickServPass(config.NickservPass),
+		ircfw.Nick(conf.nick),
+		ircfw.Ident(conf.ident),
+		ircfw.RealName(conf.realname),
+		ircfw.Password(conf.password),
+		ircfw.NickServPass(conf.nickservPass),
 		ircfw.Socket(socket),
 		ircfw.SetLogger(logger),
 		ircfw.Handler(handler),
-		ircfw.Charmap(config.Charset),
+		ircfw.Charmap(conf.charset),
 	)
 	ircbot.logger = logger
 	ircbot.client = client
@@ -94,8 +94,8 @@ func newIRCBot(baseCtx context.Context, config ConfigStruct, logger ircfw.Logger
 	ircbot.tomb.Go(ircbot.pruneWeatherCache)
 	ircbot.tomb.Go(ircbot.pruneCurrencyCache)
 
-	for _, channel := range config.Channels {
-		ctx, cancel := context.WithTimeout(tombCtx, config.Timeout)
+	for _, channel := range conf.channels {
+		ctx, cancel := context.WithTimeout(tombCtx, conf.timeout)
 		_, err = ircbot.Join(ctx, channel)
 		cancel()
 		if err != nil {
@@ -168,7 +168,7 @@ func (b *ircbot) isAdmin(prefix string) bool {
 		return false
 	}
 	prefix = prefix[i+1:]
-	for _, admin := range b.config.Admins {
+	for _, admin := range b.config.admins {
 		if prefix == admin {
 			return true
 		}
@@ -193,7 +193,7 @@ func dispatch(bot *ircbot, msg ircfw.Msg) {
 		return
 	}
 	nick := msg.Nick()
-	for _, ignore := range bot.config.Ignored {
+	for _, ignore := range bot.config.ignored {
 		if nick == ignore {
 			return
 		}
@@ -201,7 +201,7 @@ func dispatch(bot *ircbot, msg ircfw.Msg) {
 	cmd := strings.ToLower(strings.Split(text[0], " ")[0])
 	handler, ok := bot.handlers[botCmd(cmd)]
 	ctx := bot.tomb.Context(nil)
-	ctx, cancel := context.WithTimeout(ctx, bot.config.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, bot.config.timeout)
 	bot.Debug("msg: %s", msg)
 	if !ok {
 		handleDefault(ctx, bot, msg)
