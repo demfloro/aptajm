@@ -73,10 +73,18 @@ func newIRCBot(baseCtx context.Context, config ConfigStruct, logger ircfw.Logger
 	handler := func(msg ircfw.Msg) {
 		go dispatch(&ircbot, msg)
 	}
-
-	client, _ := ircfw.NewClient(tombCtx, config.Nick, config.Ident,
-		config.Realname, config.Password, config.NickservPass, socket, logger, handler, config.Charset)
-
+	client, _ := ircfw.NewClient(
+		ircfw.Context(tombCtx),
+		ircfw.Nick(config.Nick),
+		ircfw.Ident(config.Ident),
+		ircfw.RealName(config.Realname),
+		ircfw.Password(config.Password),
+		ircfw.NickServPass(config.NickservPass),
+		ircfw.Socket(socket),
+		ircfw.SetLogger(logger),
+		ircfw.Handler(handler),
+		ircfw.Charmap(config.Charset),
+	)
 	ircbot.logger = logger
 	ircbot.client = client
 	ircbot.handlers = initHandlers()
@@ -128,6 +136,7 @@ func (b *ircbot) finalizer() error {
 		case <-b.tomb.Dying():
 			b.db.Close()
 			b.client.Quit("Bot is dying")
+			return tomb.ErrDying
 		}
 	}
 }

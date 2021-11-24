@@ -5,8 +5,8 @@ go 1.17
 require (
 	gitea.demsh.org/demsh/ircfw v0.1.0
 	github.com/mattn/go-sqlite3 v1.14.9
-	golang.org/x/net v0.0.0-20211118161319-6a13c67c3ce4
-	golang.org/x/sys v0.0.0-20211117180635-dee7805ff2e1
+	golang.org/x/net v0.0.0-20211123203042-d83791d6bcd9
+	golang.org/x/sys v0.0.0-20211123173158-ef496fb156ab
 	golang.org/x/text v0.3.7
 )
 
