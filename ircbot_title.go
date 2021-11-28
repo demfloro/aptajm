@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	isUrl       = regexp.MustCompile("https?://[^\\s]{1,500}")
+	isUrl       = regexp.MustCompile(`https?://[^\s]{1,500}`)
 	ignoredExts = []string{
 		".avi", ".mkv", ".ogg", ".doc", ".docx",
 		".xls", ".xlsx", ".mp3", ".flac", ".m3a",

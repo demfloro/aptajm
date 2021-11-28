@@ -1,8 +1,9 @@
 package main
 
 import (
-	"golang.org/x/sys/unix"
 	"log"
+
+	"golang.org/x/sys/unix"
 )
 
 func init() {

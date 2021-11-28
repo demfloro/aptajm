@@ -42,10 +42,7 @@ type weather struct {
 }
 
 func (w weather) expired() bool {
-	if time.Since(w.created) > 10*time.Minute {
-		return true
-	}
-	return false
+	return time.Since(w.created) > 10*time.Minute
 }
 
 func (w weather) String() string {

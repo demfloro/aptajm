@@ -18,12 +18,12 @@ type botCmd string
 
 const (
 	cmdBash    botCmd = "!bash"
-	cmdBtc            = "!btc"
-	cmdEth            = "!eth"
-	cmdXmr            = "!xmr"
-	cmdWeather        = "!п"
-	cmdStatus         = "!status"
-	cmdQuit           = "!quit"
+	cmdBtc     botCmd = "!btc"
+	cmdEth     botCmd = "!eth"
+	cmdXmr     botCmd = "!xmr"
+	cmdWeather botCmd = "!п"
+	cmdStatus  botCmd = "!status"
+	cmdQuit    botCmd = "!quit"
 )
 
 const (
@@ -131,14 +131,10 @@ func (b *ircbot) Join(ctx context.Context, channel string) (*ircfw.Channel, erro
 }
 
 func (b *ircbot) finalizer() error {
-	for {
-		select {
-		case <-b.tomb.Dying():
-			b.db.Close()
-			b.client.Quit("Bot is dying")
-			return tomb.ErrDying
-		}
-	}
+	<-b.tomb.Dying()
+	b.db.Close()
+	b.client.Quit("Bot is dying")
+	return tomb.ErrDying
 }
 
 func (b *ircbot) Wait() error {

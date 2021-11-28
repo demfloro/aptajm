@@ -28,7 +28,7 @@ func handleCurrencies(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	}
 	price, err := getPrice(ctx, currency, bot.config.userAgent)
 	if err != nil {
-		bot.Log("Failed to get price for %q: %q", currency, err)
+		bot.Log("failed to get price for %q: %q", currency, err)
 		return
 	}
 	bot.mu.Lock()
@@ -65,10 +65,10 @@ func extractPrice(currency string, data io.Reader) (price string, err error) {
 			price = fmt.Sprintf("%.2f", maybePrice)
 			return
 		default:
-			return "", fmt.Errorf("Error parsing: %q", b)
+			return "", fmt.Errorf("error parsing: %q", b)
 		}
 	default:
-		return "", fmt.Errorf("Error parsing: %q", b)
+		return "", fmt.Errorf("error parsing: %q", b)
 	}
 }
 
