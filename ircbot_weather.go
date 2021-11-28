@@ -63,7 +63,7 @@ func handleWeather(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	city := strings.ToLower(params[0])
 	weather, err := getWeather(ctx, bot, city)
 	if err != nil {
-		bot.Log("Weather for %q: %q", city, err)
+		bot.Logf("Weather for %q: %q", city, err)
 		return
 	}
 	msg.Reply(ctx, []string{weather.String()})
