@@ -60,7 +60,7 @@ func handleURL(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 		}
 		title, err := getTitle(ctx, url, bot.config.userAgent)
 		if err != nil {
-			bot.Log("Failed to extract title from %q, err: %q", url, err)
+			bot.Logf("Failed to extract title from %q, err: %q", url, err)
 			continue
 		}
 		if len(title) == 0 {

@@ -69,7 +69,7 @@ func serveQuote(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	text := removeCmd(msg.Text(), cmdBash)
 	id, err := extractId(text)
 	if err != nil {
-		bot.Log("Failed to parse quote id: %#v", err)
+		bot.Logf("Failed to parse quote id: %#v", err)
 		return
 	}
 	if id < 0 {
@@ -77,7 +77,7 @@ func serveQuote(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	}
 	quote, err := bot.fetchQuote(ctx, id)
 	if err != nil {
-		bot.Log("Failed to get quote: %#v", err)
+		bot.Logf("Failed to get quote: %#v", err)
 		msg.Reply(ctx, []string{fmt.Sprintf("No quote with id %d", id)})
 		return
 	}
@@ -88,7 +88,7 @@ func serveQuote(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 func serveRandomQuote(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	quote, err := bot.fetchQuote(ctx, 0)
 	if err != nil {
-		bot.Log("Failed to get quote: %#v", err)
+		bot.Logf("Failed to get quote: %#v", err)
 		return
 	}
 	msg.Reply(ctx, quote.ircFormat())
@@ -103,13 +103,13 @@ func serveRatingQuote(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	if strings.HasPrefix(text[0], "+") {
 		rating, err = strconv.ParseInt(text[0][1:], 10, 64)
 		if err != nil {
-			bot.Log("Failed to parse rating: %q", rating)
+			bot.Logf("Failed to parse rating: %q", rating)
 			return
 		}
 	}
 	quote, err := bot.fetchRandomRatingQuote(ctx, int(rating))
 	if err != nil {
-		bot.Log("Failed to get quote: %#v", err)
+		bot.Logf("Failed to get quote: %#v", err)
 		return
 	}
 	msg.Reply(ctx, quote.ircFormat())
@@ -139,7 +139,7 @@ func allow(bot *ircbot, msg ircfw.Msg) bool {
 	bot.mu.Lock()
 	limit, ok := bot.bashLimits[channel]
 	if !ok {
-		bot.Log("Initialised missing bash limiter for %q", channel)
+		bot.Logf("Initialised missing bash limiter for %q", channel)
 		limit = time.NewTimer(time.Nanosecond)
 		bot.bashLimits[channel] = limit
 	}

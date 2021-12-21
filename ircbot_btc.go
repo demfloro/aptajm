@@ -28,7 +28,7 @@ func handleCurrencies(ctx context.Context, bot *ircbot, msg ircfw.Msg) {
 	}
 	price, err := getPrice(ctx, currency, bot.config.userAgent)
 	if err != nil {
-		bot.Log("failed to get price for %q: %q", currency, err)
+		bot.Logf("failed to get price for %q: %q", currency, err)
 		return
 	}
 	bot.mu.Lock()
