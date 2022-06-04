@@ -75,7 +75,7 @@ func extractTGLastPost(data io.Reader) (quote string, err error) {
 	if err != nil {
 		return
 	}
-	quote, ok := traverse(tree, 0, isTGElement, tgExtractor)
+	quote, ok := revTraverse(tree, 0, isTGElement, tgExtractor)
 	if !ok {
 		return "", errors.New("failed to extract post")
 	}
@@ -104,6 +104,24 @@ func traverse(n *html.Node, depth uint, filter filterFunc, extractor extractFunc
 
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
 		result, ok := traverse(child, depth, filter, extractor)
+		if ok {
+			return result, ok
+		}
+	}
+	return "", false
+}
+
+func revTraverse(n *html.Node, depth uint, filter filterFunc, extractor extractFunc) (string, bool) {
+	depth++
+	if depth == RecursionLimit {
+		return "", false
+	}
+	if filter(n) {
+		return extractor(n)
+	}
+
+	for child := n.LastChild; child != nil; child = child.PrevSibling {
+		result, ok := revTraverse(child, depth, filter, extractor)
 		if ok {
 			return result, ok
 		}

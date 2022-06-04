@@ -10,6 +10,7 @@ import (
 
 func (b *ircbot) pollNews() error {
 	var next time.Duration
+	var oldnews string
 	now := time.Now()
 	min := now.Minute()
 	delta := 1 - min
@@ -22,7 +23,6 @@ func (b *ircbot) pollNews() error {
 	}
 	rootctx := b.tomb.Context(nil)
 	timer := time.NewTimer(next)
-	b.Logf("ETA for news: %#v", next)
 	for {
 		select {
 		case <-b.tomb.Dying():
@@ -37,10 +37,14 @@ func (b *ircbot) pollNews() error {
 				b.Logf("Error getting news: %#v", err)
 				continue
 			}
+			if line == oldnews {
+				continue
+			}
 			b.mu.Lock()
 			channel := b.channels["#mania"]
 			b.mu.Unlock()
 			channel.Say(fmt.Sprintf("новости: %s", line))
+			oldnews = line
 		}
 	}
 }
