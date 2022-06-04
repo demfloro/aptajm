@@ -12,7 +12,7 @@ func (b *ircbot) pollNews() error {
 	var next time.Duration
 	now := time.Now()
 	min := now.Minute()
-	delta := 21 - min
+	delta := 1 - min
 	if delta > 0 {
 		next = time.Minute * time.Duration(delta)
 	} else if delta == 0 {
