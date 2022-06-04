@@ -54,6 +54,7 @@ type ircbot struct {
 	weatherCache  map[string]weather
 	currencyCache map[string]string
 	bashLimits    map[string]*time.Timer
+	channels      map[string]*ircfw.Channel
 }
 
 func newIRCBot(baseCtx context.Context, conf config, logger ircfw.Logger) (*ircbot, error) {
@@ -90,14 +91,18 @@ func newIRCBot(baseCtx context.Context, conf config, logger ircfw.Logger) (*ircb
 	ircbot.handlers = initHandlers()
 
 	ircbot.bashLimits = make(map[string]*time.Timer)
+	ircbot.channels = make(map[string]*ircfw.Channel)
+
 	ircbot.tomb.Go(ircbot.finalizer)
 	ircbot.tomb.Go(ircbot.pruneWeatherCache)
 	ircbot.tomb.Go(ircbot.pruneCurrencyCache)
+	ircbot.tomb.Go(ircbot.pollNews)
 
 	for _, channel := range conf.channels {
 		ctx, cancel := context.WithTimeout(tombCtx, conf.timeout)
-		_, err = ircbot.Join(ctx, channel)
+		chHandle, err := ircbot.Join(ctx, channel)
 		cancel()
+		ircbot.channels[chHandle.Name()] = chHandle
 		if err != nil {
 			logger.Logf("Error joining channel %q: %q", channel, err)
 		}

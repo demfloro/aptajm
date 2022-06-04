@@ -52,6 +52,36 @@ func twitchExtractor(n *html.Node) (string, bool) {
 
 }
 
+func tgExtractor(n *html.Node) (string, bool) {
+	if n == nil {
+		return "", false
+	}
+	return n.FirstChild.Data, true
+}
+
+func isTGElement(n *html.Node) bool {
+	if n.Type == html.ElementNode && n.Data == "div" {
+		for _, attr := range n.Attr {
+			if attr.Key == "class" && attr.Val == "tgme_widget_message_text js-message_text" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func extractTGLastPost(data io.Reader) (quote string, err error) {
+	tree, err := html.Parse(data)
+	if err != nil {
+		return
+	}
+	quote, ok := traverse(tree, 0, isTGElement, tgExtractor)
+	if !ok {
+		return "", errors.New("failed to extract post")
+	}
+	return
+}
+
 func isTwitchElement(n *html.Node) bool {
 	if n.Type == html.ElementNode && n.Data == "meta" {
 		for _, attr := range n.Attr {
