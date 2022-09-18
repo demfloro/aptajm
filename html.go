@@ -3,21 +3,30 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 	"golang.org/x/text/transform"
 )
 
 const (
 	RecursionLimit = 1000
 )
+
+var playerResponsePattern = regexp.MustCompile(`var ytInitialPlayerResponse\s=\s(\{.+?\});`)
 
 /*
  * Kudos to https://siongui.github.io/
@@ -144,6 +153,9 @@ func extractTitle(data io.Reader, utf8 bool) (title string, err error) {
 	if !ok {
 		return "", errors.New("failed to find title")
 	}
+	if strings.HasSuffix(title, " YouTube") {
+		title = extractYoutube(tree, title)
+	}
 	switch title {
 	case "Twitch":
 		title, ok = traverse(tree, 0, isTwitchElement, twitchExtractor)
@@ -152,6 +164,75 @@ func extractTitle(data io.Reader, utf8 bool) (title string, err error) {
 		}
 	}
 	return
+}
+
+func isYoutubeElement(n *html.Node) bool {
+	if n.Type == html.ElementNode && n.Data == "script" && n != nil && n.FirstChild != nil {
+		return strings.Contains(n.FirstChild.Data, "var ytInitialPlayerResponse =")
+	}
+	return false
+}
+
+func formatTime(input string) string {
+	duration, err := time.ParseDuration(fmt.Sprintf("%ss", input))
+	if err != nil {
+		return "N/A"
+	}
+	return duration.String()
+
+}
+
+func formatDate(input string) string {
+	splitted := strings.Split(input, "-")
+	if len(splitted) != 3 {
+		return input
+	}
+	return fmt.Sprintf("%s.%s.%s", splitted[2], splitted[1], splitted[0])
+}
+
+func formatViews(input string) string {
+	if len(input) < 4 {
+		return input
+	}
+	out, err := strconv.ParseUint(input, 10, 64)
+	if err != nil {
+		return "N/A"
+	}
+	p := message.NewPrinter(language.Ukrainian)
+	return p.Sprintf("%d", out)
+}
+
+func formatYoutubeTitle(data *playerResponseData) string {
+	author := data.VideoDetails.Author
+	title := data.VideoDetails.Title
+	viewCount := formatViews(data.VideoDetails.ViewCount)
+	length := formatTime(data.Microformat.PlayerMicroformatRenderer.LengthSeconds)
+	date := formatDate(data.Microformat.PlayerMicroformatRenderer.PublishDate)
+	return fmt.Sprintf("%s \x0310©\x03 %s \x0310|\x03 %s \x0310|\x03 %s \x0310|\x03 \x0312V:\x03 %s\n", title, author, date, length, viewCount)
+}
+
+func youtubeExtractor(n *html.Node) (string, bool) {
+	if n != nil {
+		data := playerResponsePattern.FindSubmatch([]byte(n.FirstChild.Data))
+		if data == nil || len(data) < 2 {
+			return "", false
+		}
+		var prData playerResponseData
+		err := json.Unmarshal(data[1], &prData)
+		if err != nil {
+			return "", false
+		}
+		return formatYoutubeTitle(&prData), true
+	}
+	return "", false
+}
+
+func extractYoutube(n *html.Node, fallback string) string {
+	title, ok := traverse(n, 0, isYoutubeElement, youtubeExtractor)
+	if !ok {
+		return fallback
+	}
+	return title
 }
 
 func htmlToUTF8(data io.Reader) (result io.Reader, err error) {
