@@ -8,33 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"golang.org/x/text/encoding/charmap"
 )
 
 var (
-	charmaps = map[string]*charmap.Charmap{
-		"windows-1250": charmap.Windows1250,
-		"windows-1251": charmap.Windows1251,
-		"windows-1252": charmap.Windows1252,
-		"windows-1253": charmap.Windows1253,
-		"windows-1254": charmap.Windows1254,
-		"windows-1255": charmap.Windows1255,
-		"windows-1256": charmap.Windows1256,
-		"windows-1257": charmap.Windows1257,
-		"windows-1258": charmap.Windows1258,
-		"cp1250":       charmap.Windows1250,
-		"cp1251":       charmap.Windows1251,
-		"cp1252":       charmap.Windows1252,
-		"cp1253":       charmap.Windows1253,
-		"cp1254":       charmap.Windows1254,
-		"cp1255":       charmap.Windows1255,
-		"cp1256":       charmap.Windows1256,
-		"cp1257":       charmap.Windows1257,
-		"cp1258":       charmap.Windows1258,
-		"koi8r":        charmap.KOI8R,
-		"koi8u":        charmap.KOI8U,
-	}
 	handlers = map[string]optHandler{
 		"nick":           nick,
 		"password":       password,
@@ -50,7 +26,6 @@ var (
 		"admins":         admins,
 		"nickservpass":   nickservPass,
 		"pubfingerprint": pubFingerprint,
-		"charset":        setCharset,
 	}
 )
 
@@ -64,7 +39,6 @@ type config struct {
 	userAgent, nickservPass   string
 	pubFingerprint            string
 	admins, channels, ignored []string
-	charset                   *charmap.Charmap
 	timeout                   time.Duration
 }
 
@@ -82,17 +56,6 @@ func loadConfig(fname string) (*config, error) {
 		return nil, err
 	}
 	return conf, nil
-}
-
-func lookupCharset(name string) (result *charmap.Charmap) {
-	if name == "" {
-		return nil
-	}
-	result, ok := charmaps[name]
-	if !ok {
-		return nil
-	}
-	return result
 }
 
 func parseConfig(reader io.Reader) (c *config, err error) {
@@ -251,15 +214,6 @@ func pubFingerprint(value string) option {
 			log.Fatalf("Repeated PubFingerprint assignment")
 		}
 		c.pubFingerprint = value
-	}
-}
-
-func setCharset(value string) option {
-	return func(c *config) {
-		if c.charset != nil {
-			log.Fatalf("Repeated Charset assignment")
-		}
-		c.charset = lookupCharset(value)
 	}
 }
 

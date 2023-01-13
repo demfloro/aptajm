@@ -84,7 +84,6 @@ func newIRCBot(baseCtx context.Context, conf config, logger ircfw.Logger) (*ircb
 		ircfw.Socket(socket),
 		ircfw.SetLogger(logger),
 		ircfw.Handler(handler),
-		ircfw.Charmap(conf.charset),
 	)
 	ircbot.logger = logger
 	ircbot.client = client
